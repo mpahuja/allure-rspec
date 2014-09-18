@@ -2,53 +2,54 @@ require 'digest'
 require 'mimemagic'
 module AllureRSpec
   module DSL
+    module Example
 
-    ALLOWED_ATTACH_EXTS = %w[txt html xml png jpg json]
-
-    def __mutex
-      @@__mutex ||= Mutex.new
-    end
-
-    def __current_step
-      if defined? @@__current_step
-        @@__current_step
-      else
-        nil
+      def current_step
+        if defined? @@__current_step
+          @@__current_step
+        else
+          nil
+        end
       end
-    end
 
-    def __with_step(step, &block)
-      __mutex.synchronize do
-        @@__current_step = step
-        yield
-        @@__current_step = nil
+      def step(step, &block)
+        suite = metadata[:example_group][:description_args].first.to_s
+        test = metadata[:description].to_s
+        begin
+          AllureRubyAdaptorApi::Builder.start_step(suite, test, step)
+          __with_step step, &block
+          AllureRubyAdaptorApi::Builder.stop_step(suite, test, step)
+        rescue Exception => e
+          AllureRubyAdaptorApi::Builder.stop_step(suite, test, step, :failed)
+          raise e
+        end
       end
-    end
 
-    def step(step, &block)
-      suite = self.example.metadata[:example_group][:description_args].first
-      test = self.example.metadata[:description]
-      AllureRSpec::Builder.start_step(suite, test, step)
-      __with_step step, &block
-      AllureRSpec::Builder.stop_step(suite, test, step)
-    end
+      def attach_file(title, file, opts = {})
+        suite = metadata[:example_group][:description_args].first.to_s
+        test = metadata[:description].to_s
+        step = current_step
+        AllureRubyAdaptorApi::Builder.add_attachment suite, test, opts.merge(:title => title, :file => file, :step => step)
+      end
 
-    def attach_file(title, file)
-      step = __current_step
-      dir = Pathname.new(AllureRSpec::Config.output_dir)
-      FileUtils.mkdir_p(dir)
-      file_extname = File.extname(file.path.downcase)
-      type = MimeMagic.by_path(file.path) || "text/plain"
-      attachment = dir.join("#{Digest::SHA256.file(file.path).hexdigest}-attachment#{(file_extname.empty?) ? '' : file_extname}")
-      FileUtils.cp(file.path, attachment)
-      suite = self.example.metadata[:example_group][:description_args].first
-      test = self.example.metadata[:description]
-      AllureRSpec::Builder.add_attachment(suite, test, {
-          :type => type,
-          :title => title,
-          :source => attachment.basename,
-          :size => File.stat(attachment).size
-      }, step)
+      private
+
+      def __mutex
+        @@__mutex ||= Mutex.new
+      end
+
+      def __with_step(step, &block)
+        __mutex.synchronize do
+          begin
+            @@__current_step = step
+            AllureRSpec.context.rspec.hooks.send :run, :before, :step, self
+            yield self
+          ensure
+            AllureRSpec.context.rspec.hooks.send :run, :after, :step, self
+            @@__current_step = nil
+          end
+        end
+      end
     end
   end
 end

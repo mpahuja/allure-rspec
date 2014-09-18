@@ -18,10 +18,8 @@ Gem::Specification.new do |s|
   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
   s.require_paths = ['lib']
 
-  s.add_dependency 'rspec', '~> 2.13.0'
-  s.add_dependency 'nokogiri', '~> 1.6.0'
-  s.add_dependency 'uuid'
-  s.add_dependency 'mimemagic'
+  s.add_dependency 'rspec', '~> 3.0'
+  s.add_dependency 'allure-ruby-adaptor-api', '0.6.3'
 
   s.add_development_dependency 'bundler'
   s.add_development_dependency 'rake'
